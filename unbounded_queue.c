@@ -1,3 +1,7 @@
+//
+// Created by ilanit on 7/11/24.
+//
+
 #include "unbounded_queue.h"
 #include <stdlib.h>
 #include <string.h>
@@ -52,21 +56,26 @@ void insertUnbounded(unboundedQueue *queue, newsItem item) {
     sem_post(&queue->full); // Signal that the queue has a new item
 }
 
+// Remove and return a newsItem from the unbounded queue
 newsItem popUnbounded(unboundedQueue *queue) {
-    sem_wait(&queue->full);
-    pthread_mutex_lock(&queue->mutex);
+    sem_wait(&queue->full); // Wait for the queue to have items
+    pthread_mutex_lock(&queue->mutex); // Lock the mutex for thread safety
+
     if (queue->head == NULL) {
+        // If the queue is empty, unlock the mutex and return a default newsItem
         pthread_mutex_unlock(&queue->mutex);
         return createNewsItem(-1); //handle empty queue case appropriately
     }
-    Node *nodeToRemove = queue->head;
-    newsItem item = nodeToRemove->item;
-    queue->head = queue->head->next;
+    Node *nodeToRemove = queue->head; // Get the node at the front of the queue
+    newsItem item = nodeToRemove->item; // Extract the newsItem from the node
+    queue->head = queue->head->next;  // Move the head pointer to the next node
+
     if (queue->head == NULL) {
-        queue->tail = NULL;
+        queue->tail = NULL; // If the queue is now empty, set the tail to NULL
     }
-    queue->count--;
-    free(nodeToRemove);
-    pthread_mutex_unlock(&queue->mutex);
+    queue->count--; // Decrement the count of items in the queue
+    free(nodeToRemove);  // Free the memory of the removed node
+    pthread_mutex_unlock(&queue->mutex); // Unlock the mutex
+
     return item;
 }

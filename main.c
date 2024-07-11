@@ -13,11 +13,12 @@
 #define WEATHER_QUEUE 1
 #define POLITICS_QUEUE 2
 
-// create a global array of bounded queues
+// Create a global array of bounded queues for producers
 boundedQueue **producers;
 unboundedQueue *consumers[NUM_OF_CONSUMERS];
 boundedQueue *screenMonitorQueue;
 
+// Print the type of the news item
 void printType(newsItem item) {
     switch (item.type) {
         case sports:
@@ -35,218 +36,169 @@ void printType(newsItem item) {
     }
 }
 
-// generate a random newsType
+// Generate a random newsType
 int generateRandomNewsType() {
-    // srand  by the tid
-    // generate a random number between 0 and 2
-    int random = rand() % 3;
-    // return the random number
-    return random;
+    // Generate a random number between 0 and 2
+    return rand() % 3;
 }
 
-//create a news item
+// Create a news item
 newsItem createNewsItem(int i) {
-    // create a newsItem
     newsItem item;
-    // allocate memory for the id
     item.id = i;
-    // set the id of the newsItem to random
-    // set the type of the newsItem
     item.type = generateRandomNewsType();
-    // get the number of the type of newsItem
     if (i != -1) {
         item.numOfType = producers[i]->types[item.type];
         producers[i]->types[item.type]++;
     } else {
         item.numOfType = 0;
     }
-    // return the newsItem
     return item;
 }
 
-
+// Function declarations
 void sortAndAdd(newsItem item);
-
-
 void printNewsItem(newsItem item, int i);
-
-
 void freeAll(int numOfProducers);
 
-// add bounded queue to the global array of bounded queues
+// Add a bounded queue to the global array of bounded queues
 void addBoundedQueue(boundedQueue *queue, int numOfProducers) {
-    // realloc the global array of bounded queues
+    // Reallocate the global array of bounded queues
     producers = realloc(producers, sizeof(boundedQueue) * (numOfProducers + 1));
-    // add the queue to the global array of bounded queues
+    // Add the queue to the global array of bounded queues
     producers[numOfProducers - 1] = queue;
 }
 
-// create insertBounded function to boundedbuffer
+// Insert a news item into a bounded buffer
 void insertBounded(boundedQueue *queue, newsItem item) {
-    // down the empty semaphore
-    sem_wait(&queue->empty);
-    // lock the mutex of the queue
-    pthread_mutex_lock(&queue->mutex);
+    sem_wait(&queue->empty); // Wait until there is space in the queue
+    pthread_mutex_lock(&queue->mutex); // Lock the queue
 
-    // insert the newsItem into the queue
+    // Insert the news item into the queue
     queue->buffer[queue->rear] = item;
-    // increment the number of the type of newsItem
-    // increment the rear of the queue
-    queue->rear = (queue->rear + 1) % queue->capacity;
-    // increment the count of the queue
-    queue->count++;
-    // unlock the mutex
-    pthread_mutex_unlock(&queue->mutex);
-    // post to the full semaphore
-    sem_post(&queue->full);
+    queue->rear = (queue->rear + 1) % queue->capacity; // Update the rear index
+    queue->count++; // Increment the count of items in the queue
+
+    pthread_mutex_unlock(&queue->mutex); // Unlock the queue
+    sem_post(&queue->full); // Signal that the queue has new items
 }
 
-// create a bounded pop function to popBounded newsItems off of the queue
+// Remove a news item from a bounded buffer
 newsItem popBounded(boundedQueue *queue) {
-    // print num of items left
-    // down the full semapore
-    sem_wait(&queue->full);
+    sem_wait(&queue->full); // Wait until there are items in the queue
+    pthread_mutex_lock(&queue->mutex); // Lock the queue
 
-    // lock the mutex of the queue
-    pthread_mutex_lock(&queue->mutex);
-    // popBounded the newsItem off of the queue
+    // Remove the news item from the queue
     newsItem item = queue->buffer[queue->front];
-    // increment the front of the queue
-    queue->front = (queue->front + 1) % queue->capacity;
-    // decrement the count of the queue
-    queue->count--;
-    // unlock the mutex
-    pthread_mutex_unlock(&queue->mutex);
-    // post to the empty semaphore
-    sem_post(&queue->empty);
-    // return the newsItem
-    return item;
+    queue->front = (queue->front + 1) % queue->capacity; // Update the front index
+    queue->count--; // Decrement the count of items in the queue
+
+    pthread_mutex_unlock(&queue->mutex); // Unlock the queue
+    sem_post(&queue->empty); // Signal that there is space in the queue
+
+    return item; // Return the news item
 }
 
-// Insert a newsItem into the unbounded queue
+// Insert a news item into an unbounded queue
 void insertUnbounded(unboundedQueue *queue, newsItem item) {
-    // Create a new node for the item
-    Node *newNode = (Node *) malloc(sizeof(Node));
+    Node *newNode = (Node *) malloc(sizeof(Node)); // Create a new node
     newNode->item = item;
     newNode->next = NULL;
 
-    // Lock the mutex of the queue
-    pthread_mutex_lock(&queue->mutex);
+    pthread_mutex_lock(&queue->mutex); // Lock the queue
 
     // Insert the item at the tail of the queue
     if (queue->tail == NULL) {
-        // If the queue is empty, update both head and tail pointers
         queue->head = newNode;
         queue->tail = newNode;
     } else {
-        // Otherwise, update the tail pointer
         queue->tail->next = newNode;
         queue->tail = newNode;
     }
 
-    // Increment the count of the queue
-    queue->count++;
+    queue->count++; // Increment the count of items in the queue
 
-    // Unlock the mutex
-    pthread_mutex_unlock(&queue->mutex);
-
-    // Post to the full semaphore
-    sem_post(&queue->full);
+    pthread_mutex_unlock(&queue->mutex); // Unlock the queue
+    sem_post(&queue->full); // Signal that the queue has new items
 }
 
-// Pop a newsItem from the unbounded queue
+// Remove a news item from an unbounded queue
 newsItem popUnbounded(unboundedQueue *queue) {
-    // Down the full semaphore
-    sem_wait(&queue->full);
-    // Lock the mutex of the queue
-    pthread_mutex_lock(&queue->mutex);
+    sem_wait(&queue->full); // Wait until there are items in the queue
+    pthread_mutex_lock(&queue->mutex); // Lock the queue
 
     if (queue->head == NULL) {
-        // Unlock the mutex before returning
-        pthread_mutex_unlock(&queue->mutex);
-        return createNewsItem(-1); // or handle the empty queue case appropriately
+        pthread_mutex_unlock(&queue->mutex); // Unlock the queue
+        return createNewsItem(-1); // Return a default news item if the queue is empty
     }
-    // Get the item from the head of the queue
+
+    // Remove the item from the head of the queue
     Node *nodeToRemove = queue->head;
     newsItem item = nodeToRemove->item;
-
-    // Update the head pointer
     queue->head = queue->head->next;
 
-    // If the head becomes NULL, update the tail pointer as well
     if (queue->head == NULL) {
         queue->tail = NULL;
     }
 
-    // Decrement the count of the queue
-    queue->count--;
+    queue->count--; // Decrement the count of items in the queue
+    free(nodeToRemove); // Free the memory for the removed node
 
-    // Free the memory for the removed node
-    free(nodeToRemove);
+    pthread_mutex_unlock(&queue->mutex); // Unlock the queue
 
-    // Unlock the mutex
-    pthread_mutex_unlock(&queue->mutex);
-
-    return item;
+    return item; // Return the news item
 }
 
-// create a producer function
+// Producer function
 void *producer(void *args) {
-    int* ptr = ((int*) args);
+    int *ptr = ((int *) args);
     int indexOfQueue = *ptr;
-    // create a counter to keep track of the number of newsItems produced
 
     for (int i = 0; i < producers[indexOfQueue]->numOfProducts; i++) {
         newsItem item = createNewsItem(indexOfQueue);
-        // insertBounded the newsItem into the queue
-        insertBounded(producers[indexOfQueue], item);
-        // increment the number of the type of newsItem
+        insertBounded(producers[indexOfQueue], item); // Insert the news item into the producer's queue
     }
-    // set the finished flag to -1
-    producers[indexOfQueue]->finished = -1;
+
+    producers[indexOfQueue]->finished = -1; // Mark the producer as finished
     return NULL;
 }
 
-
+// Dispatcher function
 void *dispatcher(void *args) {
-    int numOfProducers = *(int*) args;
+    int numOfProducers = *(int *) args;
     int totalProducts = 0;
-    // calaculate the total number of products
+
+    // Calculate the total number of products
     for (int i = 0; i < numOfProducers; i++) {
         totalProducts += producers[i]->numOfProducts;
     }
-    // the dispatcher will go through the global array of bounded queues and popBounded the newsItems off of the queue in round robin fashion
-    // create a counter to keep track of the index of the queue
-    int counter = 0;
-    // create a newsItem to hold the newsItem that is popped off of the queue
-    // a counter to check if all of the newsItems have been popped off of the queues
-    int isAllFinished = 0;
-    // create a while loop that will run until all of the newsItems have been popped off of the queues
 
-    // arr of flags to check if the producers are finished
+    int counter = 0;
+    int isAllFinished = 0;
+
+    // Array of flags to check if the producers are finished
     int *finishedFlags = malloc(sizeof(int) * numOfProducers);
-    // set all of the flags to 0
     for (int i = 0; i < numOfProducers; i++) {
         finishedFlags[i] = 0;
     }
+
     int currNumOfNewsItems = 0;
     while (1) {
         for (counter = 0; counter < numOfProducers; counter++) {
-            // check if finished
             if (producers[counter]->finished == -1) {
                 finishedFlags[counter] = 1;
-                // check if the queue is empty and if finished
                 if (producers[counter]->count == 0) {
                     continue;
                 }
             }
-            // popBounded the last newsItem off of the queue
+
+            // Remove the last news item from the producer's queue
             newsItem item = popBounded(producers[counter]);
-            sortAndAdd(item);
-            // increment the counter
+            sortAndAdd(item); // Sort and add the news item to the appropriate queue
             currNumOfNewsItems++;
         }
-        // check if all of the producers are finished
+
+        // Check if all producers are finished
         for (int i = 0; i < numOfProducers; i++) {
             if (finishedFlags[i] == 0) {
                 isAllFinished = 0;
@@ -254,19 +206,21 @@ void *dispatcher(void *args) {
             }
             isAllFinished = 1;
         }
-        // if all of the producers are finished, break out of the loop
+
+        // If all producers are finished and all news items are processed, break the loop
         if (isAllFinished == 1 && currNumOfNewsItems == totalProducts) {
-            // set the finished flag to -1
             for (int i = 0; i < 3; i++) {
                 consumers[i]->finished = -1;
             }
             break;
         }
     }
-    free(finishedFlags);
+
+    free(finishedFlags); // Free the memory for finished flags
     return NULL;
 }
 
+// Sort and add the news item to the appropriate consumer queue
 void sortAndAdd(newsItem item) {
     switch (item.type) {
         case sports:
@@ -281,93 +235,75 @@ void sortAndAdd(newsItem item) {
     }
 }
 
+// Co-Editor function
 void *coEditor(void *args) {
-    int indexOfQueue = *(int*) args;
-    // create a counter to keep track of the number of newsItems produced
+    int indexOfQueue = *(int *) args;
+
     while (1) {
-        // check if the queue is empty
         if (consumers[indexOfQueue]->count == 0) {
-            // if it is empty, check if the finished flag is set to -1
             if (consumers[indexOfQueue]->finished == -1) {
                 break;
             }
             continue;
         }
 
-        // popBounded the last newsItem off of the queue
+        // Remove the last news item from the consumer's queue
         newsItem item = popUnbounded(consumers[indexOfQueue]);
-        // sleep for a  millisecond
-        usleep(100000);
-        insertBounded(screenMonitorQueue, item);
+        usleep(100000); // Simulate editing time
+        insertBounded(screenMonitorQueue, item); // Insert the edited news item into the screen monitor queue
     }
-    // mutex
+
     pthread_mutex_lock(&screenMonitorQueue->mutex);
-    // set the finished flag to -1
-    screenMonitorQueue->finished += 1;
-    // unlock the mutex
+    screenMonitorQueue->finished += 1; // Increment the finished counter for the screen monitor queue
     pthread_mutex_unlock(&screenMonitorQueue->mutex);
 
     return NULL;
 }
 
+// Screen monitor function
 void *screenMonitor(void *args) {
     int numOfItems = 0;
-    // create a counter to keep track of the number of coeditors that are finished
+
     while (1) {
         if (screenMonitorQueue->count == 0) {
-            // check if the queue is finished
             if (screenMonitorQueue->finished == 3) {
                 printf("DONE");
                 break;
             }
             continue;
         }
-        // popBounded the last newsItem off of the queue
+
+        // Remove the last news item from the screen monitor queue
         newsItem item = popBounded(screenMonitorQueue);
-        // increment the number of the type of newsItem
-        // print the newsItem
         numOfItems++;
         fflush(stdout);
-        printNewsItem(item, numOfItems);
+        printNewsItem(item, numOfItems); // Print the news item
     }
+
     return NULL;
 }
 
+// Print the news item
 void printNewsItem(newsItem item, int i) {
     printf("PRODUCER %d ", item.id + 1);
     printType(item);
     printf(" %d\n", item.numOfType + 1);
-
 }
 
-// create a bounded queue
+// Create a bounded queue
 boundedQueue *createBoundedQueue(int id, int size, int numOfProducts) {
-    // create a bounded queue
     boundedQueue *queue = malloc(sizeof(boundedQueue));
-    // set the id of the queue
     queue->id = id;
-    // set the size of the queue
     queue->capacity = size;
-    // set the number of products of the queue
     queue->numOfProducts = numOfProducts;
-    // set the front of the queue
     queue->front = 0;
-    // set the rear of the queue
     queue->rear = 0;
-    // set the count of the queue
     queue->count = 0;
-    // set the finished flag to 0
     queue->finished = 0;
-    // initialize the mutex
     pthread_mutex_init(&queue->mutex, NULL);
-    // initialize the full semaphore
     sem_init(&queue->full, 0, 0);
-    // initialize the empty semaphore
     sem_init(&queue->empty, 0, size);
-    // allocate memory for the buffer
     queue->buffer = malloc(sizeof(newsItem) * (size + 1));
-
-    //queue->types = malloc(3 * sizeof(int));
     queue->types[0] = 0;
     queue->types[1] = 0;
     queue->types[2] = 0;
@@ -387,121 +323,114 @@ void initUnbounded(unboundedQueue *queue) {
 
 // Create an unbounded queue
 unboundedQueue *createUnboundedQueue(int id) {
-    // Create a new unbounded queue
     unboundedQueue *queue = (unboundedQueue *) malloc(sizeof(unboundedQueue));
-
-    // Set the id of the queue
     queue->id = id;
-
-    // Initialize the queue
     initUnbounded(queue);
-
     return queue;
 }
 
-// create the consumers unbounded queues
+// Create the consumer queues
 void createConsumersQueues() {
-    // create a consumer for each consumer
     for (int i = 0; i < NUM_OF_CONSUMERS; i++) {
-        // create a consumer
         consumers[i] = createUnboundedQueue(i);
     }
-
 }
 
 int main(int argc, char *argv[]) {
-
     int numOfProducers = 0;
     int coEditorQueueSize = 0;
 
-    // the first arg is the path to the config file
-    // the first arg is the path to the config file
+    // Open the configuration file
     FILE *configFile = fopen(argv[1], "r");
-
     if (configFile == NULL) {
         printf("Failed to open the config file.\n");
         return 1;
     }
-    int producerId, numProducts, boundedQueueSize;
 
+    int producerId, numProducts, boundedQueueSize;
     while (fscanf(configFile, "%d%d%d", &producerId, &numProducts, &boundedQueueSize) == 3) {
         numOfProducers++;
-        // create a bounded queue
-        // add the bounded queue to the global array of bounded queues
         addBoundedQueue(createBoundedQueue(producerId, boundedQueueSize, numProducts), numOfProducers);
     }
-    // Close the config file
+
+    // Close the configuration file
     fclose(configFile);
-    // last line of the config file is the size of the co editors queue
+
+    // Last line of the config file is the size of the co-editors queue
     coEditorQueueSize = producerId;
-    // create the screen monitor queue for the co editors
     screenMonitorQueue = createBoundedQueue(SCREEN_MANAGER, coEditorQueueSize, 0);
-    // create the consumers queues
     createConsumersQueues();
 
-    // create the producer threads
+    // Create the producer threads
     pthread_t *producerTid = malloc(sizeof(pthread_t) * numOfProducers);
-    // build the bounded queues
-    int j = 0;
-    int queueIndices[numOfProducers]; // Create an array to hold the indices
-
-    for (; j < numOfProducers; j++) {
-        queueIndices[j] = j; // Assign the current index value to the array
+    int queueIndices[numOfProducers];
+    for (int j = 0; j < numOfProducers; j++) {
+        queueIndices[j] = j;
         if (pthread_create(&producerTid[j], NULL, producer, (void *)&queueIndices[j]) != 0) {
             perror("failed to create producer thread");
         }
     }
-    // create the dispatcher thread
+
+    // Create the dispatcher thread
     pthread_t dispatcherTid;
     if (pthread_create(&dispatcherTid, NULL, dispatcher, (void *) &numOfProducers) != 0) {
         perror("failed to create dispatcher thread");
     }
-    // there are 3 consumers : sports , news , weather
+
+    // Create the consumer (co-editor) threads
     pthread_t newsUnboundedTid[NUM_OF_CONSUMERS];
     int consumerIds[NUM_OF_CONSUMERS] = {0, 1, 2};
-    // build the unbounded queues for the co editors
     for (int i = 0; i < NUM_OF_CONSUMERS; i++) {
         if (pthread_create(&newsUnboundedTid[i], NULL, coEditor, (void *) &consumerIds[i]) != 0) {
             perror("failed to create consumer thread");
         }
     }
+
+    // Create the screen monitor thread
     pthread_t monitorTid;
     if (pthread_create(&monitorTid, NULL, screenMonitor, NULL) != 0) {
         perror("failed to create monitor thread");
     }
-    // join the producer threads
+
+    // Join the producer threads
     for (int i = 0; i < numOfProducers; i++) {
         if (pthread_join(producerTid[i], NULL) != 0) {
-            perror("failed to join producer thread tid");
+            perror("failed to join producer thread");
         }
     }
-    // join the dispatcher thread
+
+    // Join the dispatcher thread
     if (pthread_join(dispatcherTid, NULL) != 0) {
-        perror("failed to join dispatcher thread tid");
+        perror("failed to join dispatcher thread");
     }
-    // join the consumer threads
+
+    // Join the consumer (co-editor) threads
     for (int i = 0; i < NUM_OF_CONSUMERS; i++) {
         if (pthread_join(newsUnboundedTid[i], NULL) != 0) {
-            perror("failed to join consumer thread tid");
+            perror("failed to join consumer thread");
         }
     }
-    // join the monitor thread
+
+    // Join the screen monitor thread
     if (pthread_join(monitorTid, NULL) != 0) {
-        perror("failed to join monitor thread tid");
+        perror("failed to join monitor thread");
     }
+
     freeAll(numOfProducers);
     free(producerTid);
     return 0;
 }
 
+// Free the memory allocated for the bounded queue
 void freeBoundedQueue(boundedQueue *queue) {
-    //free(queue->types);
     free(queue->buffer);
     pthread_mutex_destroy(&queue->mutex);
     sem_destroy(&queue->full);
     sem_destroy(&queue->empty);
     free(queue);
 }
+
+// Free the memory allocated for the unbounded queue
 void freeUnboundedQueue(unboundedQueue *queue) {
     Node *current = queue->head;
     while (current != NULL) {
@@ -513,6 +442,8 @@ void freeUnboundedQueue(unboundedQueue *queue) {
     sem_destroy(&queue->full);
     free(queue);
 }
+
+// Free all allocated resources
 void freeAll(int numOfProducers) {
     for (int i = 0; i < numOfProducers; i++) {
         freeBoundedQueue(producers[i]);

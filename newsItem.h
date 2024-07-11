@@ -1,7 +1,6 @@
 //
-// Created by arie1 on 5/21/2023.
+// Created by ilanit on 7/11/24.
 //
-
 #ifndef NEWSITEM_H
 #define NEWSITEM_H
 
@@ -12,11 +11,11 @@ typedef enum {
     news
 } newsType;
 
-// create a struct to hold a newsItem
+// a struct to hold a newsItem
 typedef struct {
     int id;
     newsType type;
     int numOfType;
 } newsItem;
 
-#endif //NEWSITEM_H
+#endif
