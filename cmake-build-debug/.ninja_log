@@ -1,0 +1,4 @@
+# ninja log v6
+6	113	1720704901645889407	build.ninja	b266ab5e4f0c23ba
+4	289	1720704240163055319	CMakeFiles/Concurrent_Programming.dir/main.c.o	788a4e4eca33c790
+290	427	1720704240447059985	Concurrent_Programming	6f022c1c901b7c40
