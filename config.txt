@@ -1,29 +1,13 @@
-1
-50
-5
-
-2
-50
-12
-
-3
-10
-30
-
+PRODUCER 1
 4
-10
-33
+queue size = 5
 
+PRODUCER 2
+3
+queue size = 5
+
+PRODUCER 3
 5
-2500
-3
+queue size = 5
 
-6
-1000
-3
-
-7
-30
-50
-
-17
+Co-Editor queue size = 15
