@@ -1,5 +1,3 @@
-# OS-3
-
 # Concurrent Programming and Synchronization Mechanisms Assignment
 
 
